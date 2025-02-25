@@ -1,48 +1,44 @@
-import { FluxDispatcher } from "@lib/flux";
-import { UserProfileStore, UserStore } from "@lib/stores";
-import {
-    patchGetPurchase,
-    patchGetUserProfile,
-    patchGuildProfileEditForm,
-    patchUseProfileEffectSections,
-    patchUseProfileTheme,
-    patchUserProfileEditForm
-} from "@patches";
-import { Settings } from "@ui/pages";
+import { storage } from "@vendetta/plugin";
+import { findByProps } from "@vendetta/metro";
+import { registerSettings } from "@vendetta/settings";
+import SettingsPage from "./settings";
 
-/** Updates the profile theme and effect used by YouScreen and BottomTabBar. */
-function updateProfileThemeAndEffect() {
-    const user = UserStore.getCurrentUser();
-    if (!user) return;
-    const user_profile = UserProfileStore.getUserProfile(user.id);
-    if (!user_profile) return;
-    FluxDispatcher.dispatch({
-        type: "USER_PROFILE_FETCH_SUCCESS",
-        user,
-        user_profile,
-        connected_accounts: user_profile.connectedAccounts
+// Find the Profile Effect system
+const ProfileEffects = findByProps("getProfileEffect");
+
+// Default storage values
+storage.fakeEffectsEnabled = storage.fakeEffectsEnabled ?? true;
+storage.fakeThemeEnabled = storage.fakeThemeEnabled ?? true;
+
+// Apply Fake Profile Effects & Themes
+export const applyFakeProfileModifications = () => {
+  if (!ProfileEffects) return;
+
+  if (storage.fakeEffectsEnabled) {
+    ProfileEffects.getProfileEffect = () => ({
+      appliedEffectId: "fake_effect",
+      unlockedEffects: ["fake_effect_1", "fake_effect_2", "fake_effect_3"],
     });
-}
+  }
 
-const patches: (() => boolean)[] = [];
+  if (storage.fakeThemeEnabled) {
+    ProfileEffects.getProfileTheme = () => ({
+      appliedThemeId: "fake_theme",
+      unlockedThemes: ["fake_theme_1", "fake_theme_2"],
+    });
+  }
+};
 
-export default {
-    onLoad() {
-        patches.push(
-            patchGetPurchase(),
-            patchGetUserProfile(),
-            patchGuildProfileEditForm(),
-            ...patchUseProfileEffectSections(),
-            patchUseProfileTheme(),
-            patchUserProfileEditForm()
-        );
-        updateProfileThemeAndEffect();
-    },
-    onUnload() {
-        patches.forEach(unpatch => {
-            unpatch();
-        });
-        updateProfileThemeAndEffect();
-    },
-    settings: Settings
+// Run automatically when the plugin loads
+export const onLoad = () => {
+  applyFakeProfileModifications();
+  registerSettings("fake-profile-settings", SettingsPage);
+};
+
+// Reset modifications when the plugin is unloaded
+export const onUnload = () => {
+  if (ProfileEffects) {
+    ProfileEffects.getProfileEffect = null;
+    ProfileEffects.getProfileTheme = null;
+  }
 };
